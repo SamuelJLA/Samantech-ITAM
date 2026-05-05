@@ -1,0 +1,13 @@
+@import "tailwindcss";
+
+@theme {
+  --color-samand-dark: #0f1115;
+  --color-samand-accent: #3b82f6;
+}
+
+body {
+  background-color: var(--color-samand-dark);
+  color: white;
+  margin: 0;
+  font-family: 'Inter', sans-serif;
+}
