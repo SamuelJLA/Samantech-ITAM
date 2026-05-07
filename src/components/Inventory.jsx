@@ -2,21 +2,24 @@ import React, { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { 
   Plus, Package, Network, Cpu, FileText, X, 
-  Save, Pencil, Trash2, Search, AlertTriangle, CheckCircle2 
+  Save, Pencil, Trash2, Search, AlertTriangle, CheckCircle2,
+  Clock 
 } from 'lucide-react'
+import AssetTimeline from './AssetTimeline'
 
-export default function Inventory({ companyId }) {
+export default function Inventory({ companyId, session }) {
   const [assets, setAssets] = useState([])
   const [searchQuery, setSearchQuery] = useState('')
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [loading, setLoading] = useState(true)
   const [editingAssetId, setEditingAssetId] = useState(null)
   
-  // ESTADOS PARA UI PERSONALIZADA
+  // NUEVO: Estado para guardar la "foto" original del activo antes de editar
+  const [originalAsset, setOriginalAsset] = useState(null)
+
   const [deleteConfirm, setDeleteConfirm] = useState({ isOpen: false, id: null, name: '' })
   const [notification, setNotification] = useState({ show: false, message: '', type: 'success' })
 
-  // ESTADO COMPLETO DEL ACTIVO (Hardware incluido)
   const [newAsset, setNewAsset] = useState({
     name: '', category: 'Workstation', serial_number: '',
     last_user: '', ip_address: '', mac_address: '', notes: '',
@@ -53,9 +56,9 @@ export default function Inventory({ companyId }) {
     )
   })
 
+  // Al editar, guardamos una copia exacta en 'originalAsset'
   const handleEdit = (asset) => {
-    setEditingAssetId(asset.id)
-    setNewAsset({
+    const dataToEdit = {
       name: asset.name || '',
       category: asset.category || 'Workstation',
       serial_number: asset.serial_number || '',
@@ -67,23 +70,17 @@ export default function Inventory({ companyId }) {
       ram: asset.specs?.ram || '',
       storage: asset.specs?.storage || '',
       os: asset.specs?.os || ''
-    })
-    setIsModalOpen(true)
-  }
-
-  const confirmDelete = async () => {
-    const { error } = await supabase.from('assets').delete().eq('id', deleteConfirm.id)
-    if (!error) {
-      showToast(`Equipo "${deleteConfirm.name}" eliminado`, 'success')
-      fetchAssets()
-    } else {
-      showToast("Error al eliminar", 'error')
     }
-    setDeleteConfirm({ isOpen: false, id: null, name: '' })
+    
+    setEditingAssetId(asset.id)
+    setNewAsset(dataToEdit)
+    setOriginalAsset(dataToEdit) // <--- Copia de seguridad
+    setIsModalOpen(true)
   }
 
   const handleSaveAsset = async (e) => {
     e.preventDefault()
+
     const assetData = {
       name: newAsset.name,
       category: newAsset.category,
@@ -101,32 +98,78 @@ export default function Inventory({ companyId }) {
       }
     }
 
-    let error;
     if (editingAssetId) {
-      const { error: updateError } = await supabase.from('assets').update(assetData).eq('id', editingAssetId)
-      error = updateError
-    } else {
-      const { error: insertError } = await supabase.from('assets').insert([{ ...assetData, status: 'disponible' }])
-      error = insertError
-    }
+      // --- COMPARACIÓN ANTI-BASURA ---
+      const hasChanges = JSON.stringify(newAsset) !== JSON.stringify(originalAsset);
 
-    if (!error) {
-      showToast(editingAssetId ? "Cambios sincronizados" : "Activo registrado")
-      closeModal()
-      fetchAssets()
+      if (!hasChanges) {
+        showToast("No se detectaron cambios", "info");
+        closeModal();
+        return; // Salimos sin tocar la DB ni crear logs
+      }
+
+      const { error: updateError } = await supabase.from('assets').update(assetData).eq('id', editingAssetId)
+      
+      if (!updateError) {
+        // Solo creamos el log si hubo cambios reales
+        await supabase.from('asset_history').insert([{
+          asset_id: editingAssetId,
+          event_type: 'actualizacion',
+          description: `Actualización técnica realizada.`,
+          technician_email: session?.user?.email
+        }])
+        
+        showToast("Cambios sincronizados")
+        closeModal()
+        fetchAssets()
+      } else {
+        showToast("Error: " + updateError.message, 'error')
+      }
     } else {
-      showToast("Error en la DB: " + error.message, 'error')
+      // Lógica para nuevo registro (Creación)
+      const { data: insertedAsset, error: insertError } = await supabase
+        .from('assets')
+        .insert([{ ...assetData, status: 'disponible' }])
+        .select()
+        .single()
+
+      if (!insertError) {
+        await supabase.from('asset_history').insert([{
+          asset_id: insertedAsset.id,
+          event_type: 'creacion',
+          description: `Registro inicial del activo.`,
+          technician_email: session?.user?.email
+        }])
+
+        showToast("Activo registrado")
+        closeModal()
+        fetchAssets()
+      } else {
+        showToast("Error: " + insertError.message, 'error')
+      }
     }
   }
 
   const closeModal = () => {
     setIsModalOpen(false)
     setEditingAssetId(null)
+    setOriginalAsset(null)
     setNewAsset({
       name: '', category: 'Workstation', serial_number: '', 
       last_user: '', ip_address: '', mac_address: '', notes: '',
       cpu: '', ram: '', storage: '', os: ''
     })
+  }
+
+  const confirmDelete = async () => {
+    const { error } = await supabase.from('assets').delete().eq('id', deleteConfirm.id)
+    if (!error) {
+      showToast(`Equipo "${deleteConfirm.name}" eliminado`, 'success')
+      fetchAssets()
+    } else {
+      showToast("Error al eliminar", 'error')
+    }
+    setDeleteConfirm({ isOpen: false, id: null, name: '' })
   }
 
   return (
@@ -138,6 +181,8 @@ export default function Inventory({ companyId }) {
           <div className={`flex items-center gap-3 px-6 py-4 rounded-2xl shadow-2xl border backdrop-blur-xl ${
             notification.type === 'success' 
               ? 'bg-green-500/10 border-green-500/20 text-green-400' 
+              : notification.type === 'info'
+              ? 'bg-blue-500/10 border-blue-500/20 text-blue-400'
               : 'bg-red-500/10 border-red-500/20 text-red-400'
           }`}>
             <CheckCircle2 size={20} />
@@ -147,11 +192,11 @@ export default function Inventory({ companyId }) {
       )}
 
       {/* HEADER */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div className="space-y-1">
           <h1 className="text-3xl font-black text-white tracking-tighter italic uppercase">Gestión de Inventario</h1>
           <p className="text-gray-500 text-[10px] font-black uppercase tracking-[0.3em] flex items-center gap-2">
-            <span className="h-1 w-1 bg-blue-500 rounded-full animate-pulse"></span> SamandTech ITAM Pro
+            <span className="h-1 w-1 bg-blue-500 rounded-full animate-pulse"></span> S A M A N D T E C H
           </p>
         </div>
         <button 
@@ -175,8 +220,8 @@ export default function Inventory({ companyId }) {
       </div>
 
       {/* TABLA DE ACTIVOS */}
-      <div className="bg-gray-900/50 border border-gray-800 rounded-[2.5rem] overflow-hidden shadow-2xl">
-        <table className="w-full text-left text-[11px]">
+      <div className="bg-gray-900/50 border border-gray-800 rounded-[2.5rem] overflow-x-auto shadow-2xl">
+        <table className="w-full text-left text-[11px] min-w-[800px]">
           <thead>
             <tr className="border-b border-gray-800 bg-black/40 text-gray-400 uppercase font-black tracking-widest">
               <th className="p-6">Nombre / Serial</th>
@@ -224,7 +269,7 @@ export default function Inventory({ companyId }) {
         </table>
       </div>
 
-      {/* ⚠️ MODAL DE BORRADO CUSTOM */}
+      {/* MODAL DE BORRADO */}
       {deleteConfirm.isOpen && (
         <div className="fixed inset-0 z-[300] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setDeleteConfirm({ ...deleteConfirm, isOpen: false })}></div>
@@ -244,13 +289,13 @@ export default function Inventory({ companyId }) {
         </div>
       )}
 
-      {/* 🖥️ MODAL DE REGISTRO / EDICIÓN (HARDWARE COMPLETO) */}
+      {/* MODAL DE REGISTRO / EDICIÓN */}
       {isModalOpen && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/80 backdrop-blur-md" onClick={closeModal}></div>
           <form 
             onSubmit={handleSaveAsset}
-            className="relative bg-gray-900 border border-gray-800 w-full max-w-2xl rounded-[3rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200"
+            className="relative bg-gray-900 border border-gray-800 w-[95%] md:w-full max-w-2xl rounded-[2.5rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200"
           >
             {/* Modal Header */}
             <div className="p-8 border-b border-white/5 flex justify-between items-center bg-black/20">
@@ -294,7 +339,7 @@ export default function Inventory({ companyId }) {
                 </div>
               </div>
 
-              {/* Bloque 3: Hardware (ESTO FALTABA) */}
+              {/* Bloque 3: Hardware */}
               <div className="space-y-5 pt-6 border-t border-white/5">
                 <div className="flex items-center gap-2 text-purple-500 px-2"><Cpu size={16} /> <span className="text-[10px] font-black uppercase tracking-[0.2em]">Hardware & OS</span></div>
                 <div className="grid grid-cols-2 gap-5">
@@ -312,11 +357,25 @@ export default function Inventory({ companyId }) {
                 <label className="text-[10px] font-black text-gray-500 uppercase px-2">Notas / Mañas Técnicas</label>
                 <textarea className="w-full bg-black/50 border border-gray-800 rounded-[2rem] p-6 text-white text-xs outline-none focus:border-yellow-500 h-32 resize-none transition-all" placeholder="Escribe detalles del equipo..." value={newAsset.notes} onChange={e => setNewAsset({...newAsset, notes: e.target.value})} />
               </div>
+
+              {/* BITÁCORA DE EVENTOS */}
+              {editingAssetId && (
+                <div className="space-y-4 pt-10 border-t border-white/5 mt-10">
+                  <div className="flex items-center gap-2 px-2 text-blue-500">
+                    <Clock size={16} /> 
+                    <span className="text-[10px] font-black uppercase tracking-[0.2em]">Bitácora de Eventos</span>
+                  </div>
+                  <AssetTimeline assetId={editingAssetId} userEmail={session?.user?.email} />
+                </div>
+              )}
             </div>
 
             {/* Modal Footer */}
             <div className="p-8 bg-black/40 border-t border-white/5">
-              <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-5 rounded-[2rem] shadow-xl flex items-center justify-center gap-3 transition-all active:scale-95 uppercase text-[11px] tracking-widest">
+              <button 
+                type="submit" 
+                className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-5 rounded-[2rem] shadow-xl flex items-center justify-center gap-3 transition-all active:scale-95 uppercase text-[11px] tracking-widest"
+              >
                 <Save size={20} /> {editingAssetId ? 'Actualizar Ficha Técnica' : 'Sincronizar en Inventario'}
               </button>
             </div>

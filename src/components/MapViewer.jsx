@@ -4,7 +4,7 @@ import {
   Monitor, Server, Laptop, Router, Printer, 
   Network, Cpu, Box, X, MousePointer2,
   Plus, Minus, Maximize, User, Zap, HardDrive, Terminal, Layers,
-  Package // <--- ¡AQUÍ ESTABA EL DETALLE!
+  Package 
 } from 'lucide-react'
 import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
 
@@ -105,20 +105,21 @@ const MapViewer = ({ companyId }) => {
     return openTickets.length > 0 ? "bg-yellow-500" : "bg-blue-600 shadow-[0_0_10px_rgba(37,99,235,0.4)]"
   }
 
-  if (loading) return <div className="h-full flex items-center justify-center text-blue-400 font-mono italic text-xs uppercase tracking-widest animate-pulse">Sincronizando satélite...</div>
+  if (loading) return <div className="h-full flex items-center justify-center text-blue-400 font-mono italic text-xs uppercase tracking-widest animate-pulse">Sincronizando...</div>
   if (!mapData) return <div className="h-full flex items-center justify-center text-gray-500 italic border-2 border-dashed border-gray-800 rounded-3xl uppercase text-[10px] font-bold">Sin plano configurado</div>
 
   return (
-    <div className="w-full h-full flex flex-col gap-4 relative">
+    <div className="w-full h-full flex flex-col gap-4 relative overflow-hidden">
       
-      <div className="flex justify-between items-center bg-gray-900/50 p-4 rounded-2xl border border-gray-800 backdrop-blur-md">
-        <div className="flex items-center gap-4">
+      {/* HEADER DE HERRAMIENTAS - RESPONSIVO */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-gray-900/50 p-4 rounded-2xl border border-gray-800 backdrop-blur-md gap-4">
+        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
           <button 
             onClick={() => {
               setEditMode(!editMode)
               setSelectedAssetId('')
             }}
-            className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-[10px] font-black transition-all uppercase tracking-widest ${
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[9px] md:text-[10px] font-black transition-all uppercase tracking-widest ${
               editMode ? 'bg-green-600 text-white shadow-lg shadow-green-600/20' : 'bg-gray-800 text-gray-400 hover:text-white'
             }`}
           >
@@ -126,26 +127,31 @@ const MapViewer = ({ companyId }) => {
           </button>
 
           {selectedAssetId && (
-            <div className="flex items-center gap-2 bg-blue-600/20 border border-blue-500/30 px-4 py-2 rounded-xl animate-pulse">
-              <span className="text-[10px] font-black text-blue-400 uppercase italic tracking-tighter">
+            <div className="flex items-center gap-2 bg-blue-600/20 border border-blue-500/30 px-3 py-2 rounded-xl animate-pulse">
+              <span className="text-[9px] md:text-[10px] font-black text-blue-400 uppercase italic tracking-tighter">
                 Ubicando: {assets.find(a => a.id === selectedAssetId)?.name || unplacedAssets.find(a => a.id === selectedAssetId)?.name}
               </span>
             </div>
           )}
         </div>
-        <div className="text-right">
+        <div className="text-left md:text-right w-full md:w-auto border-t md:border-t-0 border-white/5 pt-2 md:pt-0">
           <p className="text-[10px] text-blue-500 font-black uppercase tracking-tighter">SAMANDTECH ITAM</p>
           <p className="text-[8px] text-gray-500 font-bold uppercase">{mapData.name || 'Planta Principal'}</p>
         </div>
       </div>
 
-      <div className="flex-1 flex gap-4 overflow-hidden">
+      <div className="flex-1 flex flex-col md:flex-row gap-4 overflow-hidden relative">
         
+        {/* 📦 SIDEBAR DE STOCK - RESPONSIVO (Overlay en móvil, fijo en desktop) */}
         {editMode && (
-          <div className="w-72 bg-gray-900/50 border border-gray-800 rounded-3xl flex flex-col overflow-hidden animate-in slide-in-from-left duration-300 shadow-2xl">
-            <div className="p-5 border-b border-white/5 flex items-center gap-3 bg-black/20">
-              <Layers size={18} className="text-blue-500" />
-              <h3 className="text-[10px] font-black text-white uppercase tracking-[0.2em]">Equipos en Stock</h3>
+          <div className="absolute inset-y-0 left-0 z-[60] w-64 md:relative md:w-72 bg-gray-900/95 md:bg-gray-900/50 border-r md:border border-gray-800 rounded-r-3xl md:rounded-3xl flex flex-col overflow-hidden animate-in slide-in-from-left duration-300 shadow-2xl backdrop-blur-xl md:backdrop-blur-none">
+            <div className="p-5 border-b border-white/5 flex items-center justify-between bg-black/20">
+              <div className="flex items-center gap-3">
+                <Layers size={18} className="text-blue-500" />
+                <h3 className="text-[10px] font-black text-white uppercase tracking-[0.2em]">Equipos en Stock</h3>
+              </div>
+              {/* Botón para cerrar sidebar solo visible en móvil si quieres */}
+              <button onClick={() => setEditMode(false)} className="md:hidden text-gray-500"><X size={20}/></button>
             </div>
             <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
               {unplacedAssets.length > 0 ? (
@@ -186,10 +192,11 @@ const MapViewer = ({ companyId }) => {
           </div>
         )}
 
+        {/* ÁREA DEL MAPA - OCUPA TODO EL ESPACIO DISPONIBLE */}
         <div className="flex-1 rounded-3xl overflow-hidden border border-gray-800 bg-black/40 relative shadow-inner">
           <TransformWrapper
             initialScale={1}
-            minScale={0.5}
+            minScale={0.2}
             maxScale={4}
             centerOnInit={true}
             doubleClick={{ disabled: true }}
@@ -206,7 +213,7 @@ const MapViewer = ({ companyId }) => {
 
                 <TransformComponent wrapperStyle={{ width: "100%", height: "100%" }} contentStyle={{ width: "100%", height: "100%" }}>
                   <div className={`relative ${selectedAssetId ? 'cursor-crosshair' : ''}`} onClick={handleMapClick}>
-                    <img src={mapData.image_url} className="w-full h-auto min-w-[1000px] object-contain opacity-60 pointer-events-none" alt="Plano" />
+                    <img src={mapData.image_url} className="w-full h-auto min-w-[1000px] md:min-w-[1200px] object-contain opacity-60 pointer-events-none" alt="Plano" />
 
                     {assets.map((asset) => {
                       const DeviceIcon = ICON_REPO[asset.category?.toLowerCase()] || ICON_REPO.default
@@ -222,10 +229,11 @@ const MapViewer = ({ companyId }) => {
                             if (!editMode) setActiveAsset(asset);
                           }}
                         >
-                          <div className={`p-2 rounded-xl border border-white/10 group-hover:scale-125 transition-all ${getStatusStyle(asset)}`}>
-                            <DeviceIcon size={16} className="text-white" />
+                          <div className={`p-1.5 md:p-2 rounded-lg md:rounded-xl border border-white/10 group-hover:scale-125 transition-all ${getStatusStyle(asset)}`}>
+                            <DeviceIcon size={14} className="text-white md:w-4 md:h-4" />
                           </div>
-                          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block bg-gray-900 border border-gray-700 p-2 rounded-lg shadow-2xl z-40 pointer-events-none min-w-[120px]">
+                          {/* Tooltip oculto en móvil para no estorbar */}
+                          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden md:group-hover:block bg-gray-900 border border-gray-700 p-2 rounded-lg shadow-2xl z-40 pointer-events-none min-w-[120px]">
                             <p className="text-[10px] font-black text-blue-400 uppercase tracking-tighter text-center">{asset.name}</p>
                           </div>
                         </div>
@@ -237,47 +245,49 @@ const MapViewer = ({ companyId }) => {
             )}
           </TransformWrapper>
 
+          {/* 📑 MODAL FICHA TÉCNICA - RESPONSIVO */}
           {activeAsset && (
-            <div className="absolute inset-0 z-[100] flex items-center justify-center p-6">
+            <div className="absolute inset-0 z-[100] flex items-center justify-center p-4">
               <div className="absolute inset-0 bg-black/80 backdrop-blur-md animate-in fade-in duration-300" onClick={() => setActiveAsset(null)}></div>
-              <div className="relative bg-gray-900 border border-gray-800 w-full max-w-2xl rounded-[2.5rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+              <div className="relative bg-gray-900 border border-gray-800 w-[95%] md:w-full max-w-2xl rounded-[2.5rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
                 
-                <div className="p-6 border-b border-white/5 flex justify-between items-center bg-black/20">
-                  <div className="flex items-center gap-4">
-                    <div className={`p-4 rounded-2xl ${getStatusStyle(activeAsset)}`}>
-                      {React.createElement(ICON_REPO[activeAsset.category?.toLowerCase()] || ICON_REPO.default, { size: 28, className: "text-white" })}
+                <div className="p-5 md:p-6 border-b border-white/5 flex justify-between items-center bg-black/20">
+                  <div className="flex items-center gap-3 md:gap-4">
+                    <div className={`p-3 md:p-4 rounded-xl md:rounded-2xl ${getStatusStyle(activeAsset)}`}>
+                      {React.createElement(ICON_REPO[activeAsset.category?.toLowerCase()] || ICON_REPO.default, { size: 24, className: "text-white" })}
                     </div>
                     <div>
-                      <h3 className="text-2xl font-black text-white tracking-tighter italic uppercase">{activeAsset.name}</h3>
-                      <p className="text-[9px] font-black text-blue-500 uppercase tracking-widest">{activeAsset.category} • {activeAsset.status}</p>
+                      <h3 className="text-lg md:text-2xl font-black text-white tracking-tighter italic uppercase">{activeAsset.name}</h3>
+                      <p className="text-[8px] md:text-[9px] font-black text-blue-500 uppercase tracking-widest">{activeAsset.category} • {activeAsset.status}</p>
                     </div>
                   </div>
                   <button onClick={() => setActiveAsset(null)} className="text-gray-500 hover:text-white p-2 bg-white/5 rounded-full"><X size={24} /></button>
                 </div>
 
-                <div className="p-8 space-y-8 max-h-[50vh] overflow-y-auto custom-scrollbar">
-                  <div className="grid grid-cols-3 gap-4">
-                    <div className="bg-white/5 p-4 rounded-3xl border border-white/5">
-                      <p className="text-[9px] font-bold text-gray-500 uppercase mb-1">IP Address</p>
-                      <p className="text-sm font-mono text-blue-400 font-bold">{activeAsset.ip_address || '---'}</p>
+                <div className="p-6 md:p-8 space-y-6 md:space-y-8 max-h-[60vh] overflow-y-auto custom-scrollbar">
+                  {/* Grid de Red - Apilable en móvil */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4">
+                    <div className="bg-white/5 p-3 md:p-4 rounded-2xl md:rounded-3xl border border-white/5">
+                      <p className="text-[8px] font-bold text-gray-500 uppercase mb-1">IP Address</p>
+                      <p className="text-xs md:text-sm font-mono text-blue-400 font-bold">{activeAsset.ip_address || '---'}</p>
                     </div>
-                    <div className="bg-white/5 p-4 rounded-3xl border border-white/5">
-                      <p className="text-[9px] font-bold text-gray-500 uppercase mb-1">MAC Address</p>
-                      <p className="text-sm font-mono text-gray-300">{activeAsset.mac_address || '---'}</p>
+                    <div className="bg-white/5 p-3 md:p-4 rounded-2xl md:rounded-3xl border border-white/5">
+                      <p className="text-[8px] font-bold text-gray-500 uppercase mb-1">MAC Address</p>
+                      <p className="text-xs md:text-sm font-mono text-gray-300">{activeAsset.mac_address || '---'}</p>
                     </div>
-                    <div className="bg-white/5 p-4 rounded-3xl border border-white/5">
-                      <p className="text-[9px] font-bold text-gray-500 uppercase mb-1">Usuario</p>
-                      <p className="text-sm text-white font-bold">{activeAsset.last_user || 'N/A'}</p>
+                    <div className="bg-white/5 p-3 md:p-4 rounded-2xl md:rounded-3xl border border-white/5">
+                      <p className="text-[8px] font-bold text-gray-500 uppercase mb-1">Usuario</p>
+                      <p className="text-xs md:text-sm text-white font-bold">{activeAsset.last_user || 'N/A'}</p>
                     </div>
                   </div>
 
                   <div className="space-y-4 pt-4 border-t border-white/5">
                     <div className="flex items-center gap-2 px-2 text-purple-500"><Cpu size={16}/><h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Hardware</h4></div>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-2 gap-2 md:gap-3">
                       {activeAsset.specs && Object.entries(activeAsset.specs).map(([key, value]) => (
-                        <div key={key} className="flex justify-between items-center bg-black/40 px-5 py-3 rounded-2xl border border-white/5">
-                          <span className="text-[10px] font-bold text-purple-400/70 uppercase">{key}</span>
-                          <span className="text-xs text-gray-300 font-bold italic">{value || 'N/A'}</span>
+                        <div key={key} className="flex flex-col md:flex-row justify-between md:items-center bg-black/40 px-4 py-2.5 md:py-3 rounded-xl md:rounded-2xl border border-white/5">
+                          <span className="text-[8px] md:text-[10px] font-bold text-purple-400/70 uppercase">{key}</span>
+                          <span className="text-[10px] md:text-xs text-gray-300 font-bold italic truncate">{value || 'N/A'}</span>
                         </div>
                       ))}
                     </div>
@@ -285,20 +295,20 @@ const MapViewer = ({ companyId }) => {
 
                   <div className="space-y-4 pt-4 border-t border-white/5">
                     <div className="flex items-center gap-2 px-2 text-yellow-500"><Terminal size={16}/><h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Notas Técnicas</h4></div>
-                    <div className="bg-yellow-500/5 border border-yellow-500/20 p-5 rounded-3xl text-sm text-gray-300 italic">{activeAsset.notes || 'Sin observaciones.'}</div>
+                    <div className="bg-yellow-500/5 border border-yellow-500/20 p-4 rounded-2xl md:rounded-3xl text-[11px] md:text-sm text-gray-300 italic">{activeAsset.notes || 'Sin observaciones.'}</div>
                   </div>
                 </div>
 
-                <div className="p-6 bg-black/40 border-t border-white/5 grid grid-cols-2 gap-4">
+                <div className="p-5 md:p-6 bg-black/40 border-t border-white/5 grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
                   <button 
                     onClick={() => handleRelocate(activeAsset)}
-                    className="bg-blue-600 hover:bg-blue-500 text-white font-black py-4 rounded-3xl text-[10px] transition-all uppercase tracking-widest flex items-center justify-center gap-2"
+                    className="bg-blue-600 hover:bg-blue-500 text-white font-black py-3.5 md:py-4 rounded-2xl md:rounded-3xl text-[9px] md:text-[10px] transition-all uppercase tracking-widest flex items-center justify-center gap-2"
                   >
-                    <MousePointer2 size={14}/> Reubicar en Plano
+                    <MousePointer2 size={14}/> Reubicar
                   </button>
                   <button 
                     onClick={() => handleMoveToStock(activeAsset)}
-                    className="bg-gray-800 hover:bg-gray-700 text-gray-400 font-black py-4 rounded-3xl text-[10px] transition-all uppercase tracking-widest flex items-center justify-center gap-2"
+                    className="bg-gray-800 hover:bg-gray-700 text-gray-400 font-black py-3.5 md:py-4 rounded-2xl md:rounded-3xl text-[9px] md:text-[10px] transition-all uppercase tracking-widest flex items-center justify-center gap-2"
                   >
                     <Package size={14}/> Mover a Stock
                   </button>

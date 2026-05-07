@@ -1,10 +1,16 @@
 import React, { useEffect, useState } from 'react'
 import { supabase } from './lib/supabaseClient'
-// Añadimos 'Box' para el icono de inventario
-import { LayoutDashboard, ChevronDown, LogOut, Box } from 'lucide-react' 
+// Importamos los iconos necesarios, incluyendo PieChart para el Dashboard
+import { 
+  LayoutDashboard, ChevronDown, LogOut, Box, 
+  Menu, X as CloseIcon, PieChart 
+} from 'lucide-react' 
+
+// Importación de tus componentes
 import MapViewer from './components/MapViewer'
 import Login from './components/Login'
-import Inventory from './components/Inventory' // <--- 1. IMPORTAMOS EL NUEVO COMPONENTE
+import Inventory from './components/Inventory'
+import Dashboard from './components/Dashboard'
 
 function App() {
   const [session, setSession] = useState(null)
@@ -12,23 +18,24 @@ function App() {
   const [companies, setCompanies] = useState([])
   const [selectedCompanyId, setSelectedCompanyId] = useState('')
   
-  // 2. ESTADO PARA LA NAVEGACIÓN (Por defecto el mapa)
-  const [activeTab, setActiveTab] = useState('map') 
+  // 1. ESTADO DE NAVEGACIÓN: Iniciamos en 'dashboard' para impresionar al socio
+  const [activeTab, setActiveTab] = useState('dashboard') 
+  const [isMenuOpen, setIsMenuOpen] = useState(false)
 
+  // Manejo de Sesión de Supabase
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
       setLoading(false)
     })
-
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session)
       setLoading(false)
     })
-
     return () => subscription.unsubscribe()
   }, [])
 
+  // Cargar empresas al iniciar sesión
   useEffect(() => {
     if (session) fetchCompanies()
   }, [session])
@@ -41,93 +48,147 @@ function App() {
     }
   }
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut()
-  }
-
+  // Pantalla de Carga
   if (loading) {
     return (
       <div className="h-screen bg-[#0f1115] flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4"></div>
-          <p className="text-blue-500 font-bold tracking-widest text-xs uppercase">Iniciando SAMANDTECH...</p>
+          <p className="text-blue-500 font-black tracking-widest text-[10px] uppercase italic">Iniciando SAMANDTECH...</p>
         </div>
       </div>
     )
   }
 
+  // Gate de Login
   if (!session) return <Login />
 
   return (
-    <div className="h-screen flex bg-[#0f1115] text-white overflow-hidden">
-      {/* SIDEBAR */}
-      <aside className="w-64 border-r border-gray-800 flex flex-col p-6 bg-black/20">
-        <h1 className="text-xl font-bold text-blue-500 mb-10 tracking-tighter">SAMANDTECH</h1>
+    <div className="h-screen flex bg-[#0f1115] text-white overflow-hidden relative font-sans">
+      
+      {/* --- CAPA DE CIERRE (Solo Móvil) --- */}
+      {isMenuOpen && (
+        <div 
+          className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[150] lg:hidden"
+          onClick={() => setIsMenuOpen(false)}
+        />
+      )}
+
+      {/* --- 2. SIDEBAR (MENÚ LATERAL) --- */}
+      <aside className={`
+        fixed inset-y-0 left-0 z-[200] w-64 bg-[#0d0f12] border-r border-white/5 flex flex-col p-6 transition-transform duration-300
+        lg:relative lg:translate-x-0 
+        ${isMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+      `}>
+        <div className="flex items-center justify-between mb-10">
+          <h1 className="text-xl font-black text-blue-500 italic uppercase tracking-tighter">SAMANDTECH</h1>
+          <button onClick={() => setIsMenuOpen(false)} className="lg:hidden text-gray-500"><CloseIcon/></button>
+        </div>
         
         <nav className="flex-1 space-y-2">
-          {/* BOTÓN MAPA */}
+          {/* BOTÓN: DASHBOARD */}
           <button 
-            onClick={() => setActiveTab('map')}
-            className={`flex items-center gap-3 w-full p-3 rounded-lg transition-all ${
-              activeTab === 'map' ? 'bg-blue-500/10 text-blue-400' : 'text-gray-500 hover:text-gray-300'
+            onClick={() => { setActiveTab('dashboard'); setIsMenuOpen(false); }}
+            className={`flex items-center gap-3 w-full p-4 rounded-2xl transition-all ${
+              activeTab === 'dashboard' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'
+            }`}
+          >
+            <PieChart size={20} /> 
+            <span className="text-xs font-black uppercase tracking-widest">Dashboard</span>
+          </button>
+
+          {/* BOTÓN: MAPA (PANEL MAESTRO) */}
+          <button 
+            onClick={() => { setActiveTab('map'); setIsMenuOpen(false); }}
+            className={`flex items-center gap-3 w-full p-4 rounded-2xl transition-all ${
+              activeTab === 'map' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'
             }`}
           >
             <LayoutDashboard size={20} /> 
-            <span className="text-sm font-medium">Panel Maestro</span>
+            <span className="text-xs font-black uppercase tracking-widest">Mapa Físico</span>
           </button>
 
-          {/* BOTÓN INVENTARIO (NUEVO) */}
+          {/* BOTÓN: INVENTARIO (GESTIÓN ACTIVOS) */}
           <button 
-            onClick={() => setActiveTab('inventory')}
-            className={`flex items-center gap-3 w-full p-3 rounded-lg transition-all ${
-              activeTab === 'inventory' ? 'bg-blue-500/10 text-blue-400' : 'text-gray-500 hover:text-gray-300'
+            onClick={() => { setActiveTab('inventory'); setIsMenuOpen(false); }}
+            className={`flex items-center gap-3 w-full p-4 rounded-2xl transition-all ${
+              activeTab === 'inventory' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'
             }`}
           >
             <Box size={20} /> 
-            <span className="text-sm font-medium">Gestión de Activos</span>
+            <span className="text-xs font-black uppercase tracking-widest">Inventario</span>
           </button>
         </nav>
 
-        <button 
-          onClick={handleLogout}
-          className="flex items-center gap-3 w-full p-3 mt-auto text-gray-500 hover:text-red-400 hover:bg-red-400/10 rounded-xl transition-all duration-200"
-        >
-          <LogOut size={20} /> 
-          <span className="text-sm font-medium">Finalizar Sesión</span>
+        {/* BOTÓN: SALIR */}
+        <button onClick={() => supabase.auth.signOut()} className="flex items-center gap-3 w-full p-4 mt-auto text-gray-500 hover:text-red-400 transition-colors">
+          <LogOut size={20} /> <span className="text-xs font-black uppercase tracking-widest">Cerrar Sesión</span>
         </button>
       </aside>
 
-      <main className="flex-1 flex flex-col">
-        {/* HEADER */}
-        <header className="h-16 border-b border-gray-800 flex items-center px-8 justify-between bg-black/10">
+      {/* --- 3. CONTENIDO PRINCIPAL --- */}
+      <main className="flex-1 flex flex-col min-w-0 w-full overflow-hidden">
+        
+        {/* HEADER SUPERIOR */}
+        <header className="h-20 border-b border-white/5 flex items-center px-4 lg:px-8 justify-between bg-black/20 backdrop-blur-md">
           <div className="flex items-center gap-4">
-            <span className="text-[10px] text-gray-500 uppercase font-bold tracking-widest">Cliente:</span>
-            <div className="relative">
-              <select 
-                value={selectedCompanyId} 
-                onChange={(e) => setSelectedCompanyId(e.target.value)}
-                className="bg-gray-900 border border-gray-700 text-blue-400 text-xs font-bold rounded-lg px-3 py-1.5 appearance-none pr-8 cursor-pointer focus:border-blue-500 outline-none"
-              >
-                {companies.map(c => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
-              <ChevronDown size={14} className="absolute right-2 top-2 text-gray-500 pointer-events-none" />
+            {/* Botón menú móvil */}
+            <button 
+              onClick={() => setIsMenuOpen(true)}
+              className="lg:hidden p-3 bg-gray-800 text-white rounded-2xl active:scale-95 transition-all"
+            >
+              <Menu size={24} />
+            </button>
+
+            {/* Selector de Cliente */}
+            <div className="hidden sm:flex items-center gap-3">
+              <span className="text-[10px] text-gray-500 font-black uppercase tracking-widest">Cliente:</span>
+              <div className="relative">
+                <select 
+                  value={selectedCompanyId} 
+                  onChange={(e) => setSelectedCompanyId(e.target.value)}
+                  className="bg-gray-900 border border-gray-700 text-blue-400 text-[10px] font-black rounded-xl px-4 py-2 outline-none appearance-none pr-10 uppercase tracking-widest cursor-pointer"
+                >
+                  {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+                <ChevronDown size={14} className="absolute right-3 top-2.5 text-gray-500 pointer-events-none" />
+              </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-3 bg-gray-900/50 px-3 py-1.5 rounded-full border border-gray-800">
-             <div className="h-2 w-2 bg-green-500 rounded-full animate-pulse"></div>
-             <span className="text-[10px] text-gray-400 font-bold">{session.user.email}</span>
+          {/* Info de Usuario */}
+          <div className="flex items-center gap-3 bg-gray-900/50 px-4 py-2 rounded-full border border-gray-800">
+              <div className="h-2 w-2 bg-green-500 rounded-full animate-pulse"></div>
+              <span className="text-[10px] text-gray-400 font-black uppercase truncate max-w-[80px] sm:max-w-none tracking-tighter">
+                {session.user.email}
+              </span>
           </div>
         </header>
 
-        {/* CONTENIDO DINÁMICO (3. AQUÍ HACEMOS EL SUICHE) */}
-        <section className="flex-1 p-8 overflow-y-auto">
+        {/* SECCIÓN DE CONTENIDO DINÁMICO */}
+        <section className="flex-1 relative overflow-hidden bg-black">
           {selectedCompanyId && (
-            activeTab === 'map' 
-              ? <MapViewer companyId={selectedCompanyId} /> 
-              : <Inventory companyId={selectedCompanyId} />
+            <>
+              {/* VISTA 1: DASHBOARD */}
+              {activeTab === 'dashboard' && (
+                <div className="p-4 lg:p-8 h-full overflow-y-auto custom-scrollbar">
+                  <Dashboard companyId={selectedCompanyId} />
+                </div>
+              )}
+
+              {/* VISTA 2: MAPA */}
+              {activeTab === 'map' && (
+                <MapViewer companyId={selectedCompanyId} />
+              )}
+
+              {/* VISTA 3: INVENTARIO (¡AJUSTADO AQUÍ ABAJO!) */}
+              {activeTab === 'inventory' && (
+                <div className="p-4 lg:p-8 h-full overflow-y-auto custom-scrollbar">
+                  {/* Pásale la session aquí para que el log funcione */}
+                  <Inventory companyId={selectedCompanyId} session={session} />
+                </div>
+              )}
+            </>
           )}
         </section>
       </main>
