@@ -1,26 +1,40 @@
 import React, { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { 
-  Monitor, Server, Laptop, Router, Printer, 
-  Network, Cpu, Box, X, MousePointer2,
-  Plus, Minus, Maximize, User, Zap, HardDrive, Terminal, Layers,
-  Package 
+  // Iconos para el mapeo dinámico
+  Monitor, Laptop, Server, Cpu, 
+  Network, Router, Wifi, Radio, ShieldCheck,
+  Camera, BatteryCharging, Printer, Fingerprint, Phone,
+  // Iconos de UI
+  Box, X, MousePointer2, Plus, Minus, Maximize, 
+  Terminal, Layers, Package 
 } from 'lucide-react'
 import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
 
-const ICON_REPO = {
-  pc: Monitor,
-  server: Server,
-  laptop: Laptop,
-  router: Router,
-  printer: Printer,
-  switch: Network,
-  ups: Cpu,
-  workstation: Monitor,
-  default: Box
+// --- EL CEREBRO VISUAL DE SAMANDTECH ---
+const ICON_CONFIG = {
+  // CÓMPUTO (Azules)
+  "PC Escritorio": { icon: Monitor, color: "text-blue-500", bg: "bg-blue-500/10" },
+  "Laptop": { icon: Laptop, color: "text-blue-400", bg: "bg-blue-400/10" },
+  "Servidor": { icon: Server, color: "text-blue-600", bg: "bg-blue-600/10" },
+  "Workstation": { icon: Cpu, color: "text-cyan-500", bg: "bg-cyan-500/10" },
+
+  // REDES (Verdes)
+  "Switch": { icon: Network, color: "text-green-500", bg: "bg-green-500/10" },
+  "Router": { icon: Router, color: "text-green-600", bg: "bg-green-600/10" },
+  "Router WiFi": { icon: Wifi, color: "text-emerald-500", bg: "bg-emerald-500/10" },
+  "Access Point": { icon: Radio, color: "text-green-400", bg: "bg-green-400/10" },
+  "Firewall": { icon: ShieldCheck, color: "text-lime-500", bg: "bg-lime-500/10" },
+
+  // SEGURIDAD / PERIFÉRICOS (Púrpuras/Amarillos)
+  "CCTV": { icon: Camera, color: "text-purple-500", bg: "bg-purple-500/10" },
+  "UPS": { icon: BatteryCharging, color: "text-yellow-500", bg: "bg-yellow-500/10" },
+  "Impresora": { icon: Printer, color: "text-purple-400", bg: "bg-purple-400/10" },
+  "Biométrico": { icon: Fingerprint, color: "text-indigo-500", bg: "bg-indigo-500/10" },
+  "Telefonía IP": { icon: Phone, color: "text-purple-300", bg: "bg-purple-300/10" },
 }
 
-const MapViewer = ({ companyId }) => {
+const MapViewer = ({ companyId, session }) => {
   const [mapData, setMapData] = useState(null)
   const [assets, setAssets] = useState([])
   const [unplacedAssets, setUnplacedAssets] = useState([])
@@ -69,7 +83,8 @@ const MapViewer = ({ companyId }) => {
       .update({ 
         x_pos: x.toFixed(2), 
         y_pos: y.toFixed(2),
-        map_id: mapData.id 
+        map_id: mapData.id,
+        status: 'disponible'
       })
       .eq('id', selectedAssetId)
 
@@ -88,10 +103,21 @@ const MapViewer = ({ companyId }) => {
   const handleMoveToStock = async (asset) => {
     const { error } = await supabase
       .from('assets')
-      .update({ x_pos: null, y_pos: null, map_id: null })
+      .update({ 
+        x_pos: null, 
+        y_pos: null, 
+        map_id: null,
+        status: 'en_stock'
+      })
       .eq('id', asset.id)
 
-    if (!error) {
+    if (!error) {      
+      await supabase.from('asset_history').insert([{
+        asset_id: asset.id,
+        event_type: 'reubicacion',
+        description: `Equipo retirado del plano y devuelto a Stock.`,
+        technician_email: session?.user?.email
+      }])
       setActiveAsset(null);
       loadMapAndAssets();
     }
@@ -100,9 +126,9 @@ const MapViewer = ({ companyId }) => {
   const getStatusStyle = (asset) => {
     const openTickets = asset.tickets?.filter(t => t.status === 'open') || []
     if (openTickets.some(t => t.priority === 'critical' || t.priority === 'high')) {
-      return "bg-red-500 shadow-[0_0_15px_rgba(239,68,68,0.7)]"
+      return "border-red-500 shadow-[0_0_20px_rgba(239,68,68,0.4)]"
     }
-    return openTickets.length > 0 ? "bg-yellow-500" : "bg-blue-600 shadow-[0_0_10px_rgba(37,99,235,0.4)]"
+    return "border-white/10"
   }
 
   if (loading) return <div className="h-full flex items-center justify-center text-blue-400 font-mono italic text-xs uppercase tracking-widest animate-pulse">Sincronizando...</div>
@@ -111,7 +137,7 @@ const MapViewer = ({ companyId }) => {
   return (
     <div className="w-full h-full flex flex-col gap-4 relative overflow-hidden">
       
-      {/* HEADER DE HERRAMIENTAS - RESPONSIVO */}
+      {/* HEADER DE HERRAMIENTAS */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-gray-900/50 p-4 rounded-2xl border border-gray-800 backdrop-blur-md gap-4">
         <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
           <button 
@@ -142,7 +168,7 @@ const MapViewer = ({ companyId }) => {
 
       <div className="flex-1 flex flex-col md:flex-row gap-4 overflow-hidden relative">
         
-        {/* 📦 SIDEBAR DE STOCK - RESPONSIVO (Overlay en móvil, fijo en desktop) */}
+        {/* SIDEBAR DE STOCK DINÁMICO */}
         {editMode && (
           <div className="absolute inset-y-0 left-0 z-[60] w-64 md:relative md:w-72 bg-gray-900/95 md:bg-gray-900/50 border-r md:border border-gray-800 rounded-r-3xl md:rounded-3xl flex flex-col overflow-hidden animate-in slide-in-from-left duration-300 shadow-2xl backdrop-blur-xl md:backdrop-blur-none">
             <div className="p-5 border-b border-white/5 flex items-center justify-between bg-black/20">
@@ -150,13 +176,13 @@ const MapViewer = ({ companyId }) => {
                 <Layers size={18} className="text-blue-500" />
                 <h3 className="text-[10px] font-black text-white uppercase tracking-[0.2em]">Equipos en Stock</h3>
               </div>
-              {/* Botón para cerrar sidebar solo visible en móvil si quieres */}
               <button onClick={() => setEditMode(false)} className="md:hidden text-gray-500"><X size={20}/></button>
             </div>
             <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
               {unplacedAssets.length > 0 ? (
                 unplacedAssets.map(asset => {
-                  const Icon = ICON_REPO[asset.category?.toLowerCase()] || ICON_REPO.default
+                  const config = ICON_CONFIG[asset.category] || { icon: Box, color: "text-gray-400", bg: "bg-white/5" };
+                  const Icon = config.icon
                   const isSelected = selectedAssetId === asset.id
                   return (
                     <button
@@ -168,8 +194,8 @@ const MapViewer = ({ companyId }) => {
                           : 'bg-black/20 border-white/5 hover:border-blue-500/50 hover:bg-black/40'
                       }`}
                     >
-                      <div className={`p-2 rounded-xl ${isSelected ? 'bg-white/20' : 'bg-gray-800 group-hover:bg-blue-500/10'}`}>
-                        <Icon size={18} className={isSelected ? 'text-white' : 'text-blue-400'} />
+                      <div className={`p-2 rounded-xl ${isSelected ? 'bg-white/20' : config.bg}`}>
+                        <Icon size={18} className={isSelected ? 'text-white' : config.color} />
                       </div>
                       <div>
                         <p className={`text-[11px] font-black uppercase tracking-tight ${isSelected ? 'text-white' : 'text-gray-300'}`}>
@@ -192,7 +218,7 @@ const MapViewer = ({ companyId }) => {
           </div>
         )}
 
-        {/* ÁREA DEL MAPA - OCUPA TODO EL ESPACIO DISPONIBLE */}
+        {/* ÁREA DEL MAPA CON ICONOS DINÁMICOS */}
         <div className="flex-1 rounded-3xl overflow-hidden border border-gray-800 bg-black/40 relative shadow-inner">
           <TransformWrapper
             initialScale={1}
@@ -201,7 +227,6 @@ const MapViewer = ({ companyId }) => {
             centerOnInit={true}
             doubleClick={{ disabled: true }}
             limitToBounds={false}
-            panning={{ velocityDisabled: true }}
           >
             {({ zoomIn, zoomOut, resetTransform }) => (
               <>
@@ -216,25 +241,31 @@ const MapViewer = ({ companyId }) => {
                     <img src={mapData.image_url} className="w-full h-auto min-w-[1000px] md:min-w-[1200px] object-contain opacity-60 pointer-events-none" alt="Plano" />
 
                     {assets.map((asset) => {
-                      const DeviceIcon = ICON_REPO[asset.category?.toLowerCase()] || ICON_REPO.default
+                      const config = ICON_CONFIG[asset.category] || { icon: Box, color: "text-gray-400", bg: "bg-white/5" };
+                      const DeviceIcon = config.icon
                       const isBeingMoved = selectedAssetId === asset.id;
 
                       return (
                         <div 
                           key={asset.id}
-                          className={`absolute group cursor-pointer transition-all ${isBeingMoved ? 'opacity-20 scale-50' : 'opacity-100'}`}
+                          className={`absolute group cursor-pointer transition-all z-50 ${isBeingMoved ? 'opacity-20 scale-50' : 'opacity-100'}`}
                           style={{ top: `${asset.y_pos}%`, left: `${asset.x_pos}%`, transform: 'translate(-50%, -50%)' }}
                           onClick={(e) => {
                             e.stopPropagation();
                             if (!editMode) setActiveAsset(asset);
                           }}
                         >
-                          <div className={`p-1.5 md:p-2 rounded-lg md:rounded-xl border border-white/10 group-hover:scale-125 transition-all ${getStatusStyle(asset)}`}>
-                            <DeviceIcon size={14} className="text-white md:w-4 md:h-4" />
+                          {/* ICONO CON ESTILO DE DISPOSITIVO */}
+                          <div className={`p-2.5 rounded-xl border backdrop-blur-md transition-all group-hover:scale-125 group-hover:border-white/40 ${config.bg} ${getStatusStyle(asset)}`}>
+                            <DeviceIcon size={18} className={`${config.color} drop-shadow-[0_0_8px_rgba(255,255,255,0.2)]`} />
                           </div>
-                          {/* Tooltip oculto en móvil para no estorbar */}
-                          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden md:group-hover:block bg-gray-900 border border-gray-700 p-2 rounded-lg shadow-2xl z-40 pointer-events-none min-w-[120px]">
-                            <p className="text-[10px] font-black text-blue-400 uppercase tracking-tighter text-center">{asset.name}</p>
+
+                          {/* TOOLTIP DINÁMICO */}
+                          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 opacity-0 group-hover:opacity-100 transition-all pointer-events-none z-[100]">
+                            <div className="bg-black/95 border border-white/10 px-3 py-2 rounded-xl shadow-2xl whitespace-nowrap text-center">
+                              <p className="text-[10px] font-black text-white uppercase tracking-tighter">{asset.name}</p>
+                              <p className={`text-[7px] font-black uppercase tracking-widest ${config.color}`}>{asset.category}</p>
+                            </div>
                           </div>
                         </div>
                       )
@@ -245,7 +276,7 @@ const MapViewer = ({ companyId }) => {
             )}
           </TransformWrapper>
 
-          {/* 📑 MODAL FICHA TÉCNICA - RESPONSIVO */}
+          {/* MODAL FICHA TÉCNICA (Mantiene iconos dinámicos) */}
           {activeAsset && (
             <div className="absolute inset-0 z-[100] flex items-center justify-center p-4">
               <div className="absolute inset-0 bg-black/80 backdrop-blur-md animate-in fade-in duration-300" onClick={() => setActiveAsset(null)}></div>
@@ -253,8 +284,12 @@ const MapViewer = ({ companyId }) => {
                 
                 <div className="p-5 md:p-6 border-b border-white/5 flex justify-between items-center bg-black/20">
                   <div className="flex items-center gap-3 md:gap-4">
-                    <div className={`p-3 md:p-4 rounded-xl md:rounded-2xl ${getStatusStyle(activeAsset)}`}>
-                      {React.createElement(ICON_REPO[activeAsset.category?.toLowerCase()] || ICON_REPO.default, { size: 24, className: "text-white" })}
+                    {/* Icono dinámico en el modal */}
+                    <div className={`p-4 rounded-2xl border ${ICON_CONFIG[activeAsset.category]?.bg || 'bg-white/5'} ${getStatusStyle(activeAsset)}`}>
+                      {React.createElement(ICON_CONFIG[activeAsset.category]?.icon || Box, { 
+                        size: 24, 
+                        className: ICON_CONFIG[activeAsset.category]?.color || "text-white" 
+                      })}
                     </div>
                     <div>
                       <h3 className="text-lg md:text-2xl font-black text-white tracking-tighter italic uppercase">{activeAsset.name}</h3>
@@ -265,7 +300,6 @@ const MapViewer = ({ companyId }) => {
                 </div>
 
                 <div className="p-6 md:p-8 space-y-6 md:space-y-8 max-h-[60vh] overflow-y-auto custom-scrollbar">
-                  {/* Grid de Red - Apilable en móvil */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4">
                     <div className="bg-white/5 p-3 md:p-4 rounded-2xl md:rounded-3xl border border-white/5">
                       <p className="text-[8px] font-bold text-gray-500 uppercase mb-1">IP Address</p>
@@ -300,18 +334,8 @@ const MapViewer = ({ companyId }) => {
                 </div>
 
                 <div className="p-5 md:p-6 bg-black/40 border-t border-white/5 grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
-                  <button 
-                    onClick={() => handleRelocate(activeAsset)}
-                    className="bg-blue-600 hover:bg-blue-500 text-white font-black py-3.5 md:py-4 rounded-2xl md:rounded-3xl text-[9px] md:text-[10px] transition-all uppercase tracking-widest flex items-center justify-center gap-2"
-                  >
-                    <MousePointer2 size={14}/> Reubicar
-                  </button>
-                  <button 
-                    onClick={() => handleMoveToStock(activeAsset)}
-                    className="bg-gray-800 hover:bg-gray-700 text-gray-400 font-black py-3.5 md:py-4 rounded-2xl md:rounded-3xl text-[9px] md:text-[10px] transition-all uppercase tracking-widest flex items-center justify-center gap-2"
-                  >
-                    <Package size={14}/> Mover a Stock
-                  </button>
+                  <button onClick={() => handleRelocate(activeAsset)} className="bg-blue-600 hover:bg-blue-500 text-white font-black py-3.5 md:py-4 rounded-2xl md:rounded-3xl text-[9px] md:text-[10px] transition-all uppercase tracking-widest flex items-center justify-center gap-2"><MousePointer2 size={14}/> Reubicar</button>
+                  <button onClick={() => handleMoveToStock(activeAsset)} className="bg-gray-800 hover:bg-gray-700 text-gray-400 font-black py-3.5 md:py-4 rounded-2xl md:rounded-3xl text-[9px] md:text-[10px] transition-all uppercase tracking-widest flex items-center justify-center gap-2"><Package size={14}/> Mover a Stock</button>
                 </div>
 
               </div>
