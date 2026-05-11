@@ -12,6 +12,7 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.104.0",
     "@tailwindcss/postcss": "^4.2.2",
+    "@xyflow/react": "^12.10.2",
     "date-fns": "^4.1.0",
     "framer-motion": "^12.38.0",
     "lucide-react": "^1.8.0",
