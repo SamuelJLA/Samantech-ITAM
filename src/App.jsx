@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react'
 import { supabase } from './lib/supabaseClient'
-// Importamos los iconos necesarios, incluyendo PieChart para el Dashboard
+// Agregamos GitBranch a los iconos
 import { 
   LayoutDashboard, ChevronDown, LogOut, Box, 
-  Menu, X as CloseIcon, PieChart 
+  Menu, X as CloseIcon, PieChart, GitBranch 
 } from 'lucide-react' 
 
 // Importación de tus componentes
@@ -11,6 +11,7 @@ import MapViewer from './components/MapViewer'
 import Login from './components/Login'
 import Inventory from './components/Inventory'
 import Dashboard from './components/Dashboard'
+import TopologyMap from './components/TopologyMap'
 
 function App() {
   const [session, setSession] = useState(null)
@@ -18,7 +19,6 @@ function App() {
   const [companies, setCompanies] = useState([])
   const [selectedCompanyId, setSelectedCompanyId] = useState('')
   
-  // 1. ESTADO DE NAVEGACIÓN: Iniciamos en 'dashboard' para impresionar al socio
   const [activeTab, setActiveTab] = useState('dashboard') 
   const [isMenuOpen, setIsMenuOpen] = useState(false)
 
@@ -97,7 +97,7 @@ function App() {
             <span className="text-xs font-black uppercase tracking-widest">Dashboard</span>
           </button>
 
-          {/* BOTÓN: MAPA (PANEL MAESTRO) */}
+          {/* BOTÓN: MAPA FÍSICO */}
           <button 
             onClick={() => { setActiveTab('map'); setIsMenuOpen(false); }}
             className={`flex items-center gap-3 w-full p-4 rounded-2xl transition-all ${
@@ -108,7 +108,18 @@ function App() {
             <span className="text-xs font-black uppercase tracking-widest">Mapa Físico</span>
           </button>
 
-          {/* BOTÓN: INVENTARIO (GESTIÓN ACTIVOS) */}
+          {/* BOTÓN: TOPOLOGÍA (NUEVO) */}
+          <button 
+            onClick={() => { setActiveTab('topology'); setIsMenuOpen(false); }}
+            className={`flex items-center gap-3 w-full p-4 rounded-2xl transition-all ${
+              activeTab === 'topology' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'
+            }`}
+          >
+            <GitBranch size={20} /> 
+            <span className="text-xs font-black uppercase tracking-widest">Topología</span>
+          </button>
+
+          {/* BOTÓN: INVENTARIO */}
           <button 
             onClick={() => { setActiveTab('inventory'); setIsMenuOpen(false); }}
             className={`flex items-center gap-3 w-full p-4 rounded-2xl transition-all ${
@@ -129,10 +140,8 @@ function App() {
       {/* --- 3. CONTENIDO PRINCIPAL --- */}
       <main className="flex-1 flex flex-col min-w-0 w-full overflow-hidden">
         
-        {/* HEADER SUPERIOR */}
         <header className="h-20 border-b border-white/5 flex items-center px-4 lg:px-8 justify-between bg-black/20 backdrop-blur-md">
           <div className="flex items-center gap-4">
-            {/* Botón menú móvil */}
             <button 
               onClick={() => setIsMenuOpen(true)}
               className="lg:hidden p-3 bg-gray-800 text-white rounded-2xl active:scale-95 transition-all"
@@ -140,7 +149,6 @@ function App() {
               <Menu size={24} />
             </button>
 
-            {/* Selector de Cliente */}
             <div className="hidden sm:flex items-center gap-3">
               <span className="text-[10px] text-gray-500 font-black uppercase tracking-widest">Cliente:</span>
               <div className="relative">
@@ -156,7 +164,6 @@ function App() {
             </div>
           </div>
 
-          {/* Info de Usuario */}
           <div className="flex items-center gap-3 bg-gray-900/50 px-4 py-2 rounded-full border border-gray-800">
               <div className="h-2 w-2 bg-green-500 rounded-full animate-pulse"></div>
               <span className="text-[10px] text-gray-400 font-black uppercase truncate max-w-[80px] sm:max-w-none tracking-tighter">
@@ -165,26 +172,26 @@ function App() {
           </div>
         </header>
 
-        {/* SECCIÓN DE CONTENIDO DINÁMICO */}
         <section className="flex-1 relative overflow-hidden bg-black">
           {selectedCompanyId && (
             <>
-              {/* VISTA 1: DASHBOARD */}
               {activeTab === 'dashboard' && (
                 <div className="p-4 lg:p-8 h-full overflow-y-auto custom-scrollbar">
                   <Dashboard companyId={selectedCompanyId} />
                 </div>
               )}
 
-              {/* VISTA 2: MAPA */}
               {activeTab === 'map' && (
-                <MapViewer companyId={selectedCompanyId} />
+                <MapViewer companyId={selectedCompanyId} session={session} />
               )}
 
-              {/* VISTA 3: INVENTARIO (¡AJUSTADO AQUÍ ABAJO!) */}
+              {/* VISTA DE TOPOLOGÍA */}
+              {activeTab === 'topology' && (
+                <TopologyMap companyId={selectedCompanyId} session={session} />
+              )}
+
               {activeTab === 'inventory' && (
                 <div className="p-4 lg:p-8 h-full overflow-y-auto custom-scrollbar">
-                  {/* Pásale la session aquí para que el log funcione */}
                   <Inventory companyId={selectedCompanyId} session={session} />
                 </div>
               )}
